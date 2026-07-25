@@ -1,0 +1,47 @@
+name: update-formula
+
+# Keep the Homebrew formula for the Proton Drive CLI in sync with Proton's
+# releases. Runs daily and on demand; only pushes to the tap when the version
+# actually changed.
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Generate the formula from Proton's manifest
+        run: |
+          # jq/curl/sha*sum are preinstalled on ubuntu-latest.
+          ./update.sh proton-drive-cli.rb
+          echo "VERSION=$(grep -m1 '  version ' proton-drive-cli.rb | sed -E 's/.*"([^"]+)".*/\1/')" >> "$GITHUB_ENV"
+
+      - name: Publish to the Homebrew tap (only if changed)
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+        run: |
+          if [ -z "$TAP_DEPLOY_KEY" ]; then
+            echo "::warning::TAP_DEPLOY_KEY not set — generated proton-drive-cli.rb ($VERSION) but skipping the tap push."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$TAP_DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes"
+          git clone git@github.com:jakobhviid/homebrew-tap tap
+          mkdir -p tap/Formula
+          cp proton-drive-cli.rb tap/Formula/proton-drive-cli.rb
+          cd tap
+          git config user.name "proton-drive-cli-bot"
+          git config user.email "proton-drive-cli-bot@users.noreply.github.com"
+          git add Formula/proton-drive-cli.rb
+          git commit -m "proton-drive-cli ${VERSION}" || { echo "no change — already at ${VERSION}"; exit 0; }
+          git push
