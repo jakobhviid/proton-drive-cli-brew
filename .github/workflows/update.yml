@@ -1,15 +1,14 @@
 name: update-formula
 
 # Keep the Homebrew formula for the Proton Drive CLI in sync with Proton's
-# releases. Runs daily and on demand; only pushes to the tap when the version
-# actually changed.
+# releases. Runs daily and on demand; only publishes when the version changed.
 on:
   schedule:
     - cron: "17 6 * * *" # daily, 06:17 UTC
   workflow_dispatch:
 
 permissions:
-  contents: write # to push the keep-alive commit back to this repo
+  contents: write # release the Linux bottle + push the keep-alive commit
 
 jobs:
   update:
@@ -17,18 +16,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Generate the formula from Proton's manifest
+      - name: Generate the formula + build the Linux bottle
         run: |
-          # jq/curl/sha*sum are preinstalled on ubuntu-latest.
+          # jq/curl/sha*sum/tar are preinstalled on ubuntu-latest.
           ./update.sh proton-drive-cli.rb
-          echo "VERSION=$(grep -m1 '  version ' proton-drive-cli.rb | sed -E 's/.*"([^"]+)".*/\1/')" >> "$GITHUB_ENV"
+          echo "VERSION=$(grep -m1 '^  version ' proton-drive-cli.rb | sed -E 's/.*"([^"]+)".*/\1/')" >> "$GITHUB_ENV"
 
-      - name: Publish to the Homebrew tap (only if changed)
+      - name: Publish — release the bottle, then push the formula to the tap
         env:
+          GH_TOKEN: ${{ github.token }}
           TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
         run: |
           if [ -z "$TAP_DEPLOY_KEY" ]; then
-            echo "::warning::TAP_DEPLOY_KEY not set — generated proton-drive-cli.rb ($VERSION) but skipping the tap push."
+            echo "::warning::TAP_DEPLOY_KEY not set — built formula + bottle ($VERSION) but skipping publish."
             exit 0
           fi
           mkdir -p ~/.ssh
@@ -37,21 +37,30 @@ jobs:
           ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes"
           git clone git@github.com:jakobhviid/homebrew-tap tap
-          mkdir -p tap/Formula
+          current="$(grep -m1 '^  version ' tap/Formula/proton-drive-cli.rb 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' || true)"
+          if [ "$current" = "$VERSION" ]; then
+            echo "tap already at $VERSION — nothing to do"
+            exit 0
+          fi
+          # Release the bottle FIRST so its url resolves before the formula lands.
+          gh release create "v$VERSION" build/*.bottle.tar.gz -R "$GITHUB_REPOSITORY" \
+            --title "proton-drive-cli $VERSION" \
+            --notes "x86_64 Linux Homebrew bottle for Proton Drive CLI $VERSION (repackaged from Proton's release so \`brew install\` pours it without a compiler). macOS + other arches install directly from Proton." \
+            || gh release upload "v$VERSION" build/*.bottle.tar.gz -R "$GITHUB_REPOSITORY" --clobber
+          # Then push the formula to the tap.
           cp proton-drive-cli.rb tap/Formula/proton-drive-cli.rb
           cd tap
           git config user.name "proton-drive-cli-bot"
           git config user.email "proton-drive-cli-bot@users.noreply.github.com"
           git add Formula/proton-drive-cli.rb
-          git commit -m "proton-drive-cli ${VERSION}" || { echo "no change — already at ${VERSION}"; exit 0; }
+          git commit -m "proton-drive-cli ${VERSION}"
           git push
 
       - name: Keep the schedule alive
         # GitHub disables a repo's cron after 60 days with no activity. Proton
-        # releases (and thus tap pushes) are rare and land in the *tap*, not here,
-        # so this repo can go idle. Push a throwaway commit only when we're near
-        # the cutoff — ~one commit every ~50 days, not daily. A GITHUB_TOKEN push
-        # counts as activity but doesn't re-trigger the workflow (no loop).
+        # releases are rare and land in the *tap*, so push a throwaway commit here
+        # only when we're near the cutoff — ~one every ~50 days, not daily. A
+        # GITHUB_TOKEN push counts as activity but doesn't re-trigger the workflow.
         run: |
           last=$(git log -1 --format=%ct)
           age=$(( ( $(date +%s) - last ) / 86400 ))

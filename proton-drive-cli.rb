@@ -6,6 +6,15 @@ class ProtonDriveCli < Formula
   version "0.6.0"
   license "MIT"
 
+  # Prebuilt x86_64 Linux bottle so `brew install` pours it with no C compiler
+  # (Homebrew-on-Linux otherwise requires one — a problem on atomic distros).
+  # macOS and other arches fall back to the direct-from-Proton url below; macOS
+  # always has clang via the required Command Line Tools, so no bottle is needed.
+  bottle do
+    root_url "https://github.com/jakobhviid/proton-drive-cli-brew/releases/download/v0.6.0"
+    sha256 cellar: :any_skip_relocation, x86_64_linux: "533468f681eeb2d865da6c562edc359e938c283d8f46897d17ed8c9aafc75ad8"
+  end
+
   on_macos do
     on_arm do
       url "https://proton.me/download/drive/cli/0.6.0/darwin-arm64/proton-drive"

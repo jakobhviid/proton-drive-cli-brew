@@ -21,19 +21,25 @@ desktop app).
 
 ## How it works
 
-- **`brew install` downloads the binary straight from Proton** — the formula's
-  `url` points at `https://proton.me/download/drive/cli/<version>/…`. Nothing is
-  rehosted; no build server sits in your install path.
-- Homebrew requires a **SHA-256**, but Proton's manifest publishes **SHA-512**
-  only (and the formula DSL has no SHA-512 field). So [`update.sh`](update.sh)
-  fetches each binary once, **verifies Proton's SHA-512** for integrity, and
-  computes the SHA-256 the formula needs.
+- **macOS (and non-x86_64 Linux) download straight from Proton** — the formula's
+  `url` points at `https://proton.me/download/drive/cli/<version>/…`. Homebrew on
+  macOS always has `clang` (via the required Command Line Tools), so it installs
+  the Proton binary directly.
+- **x86_64 Linux pours a bottle.** Homebrew-on-Linux requires a **C compiler** for
+  any non-bottled formula — a problem on atomic/immutable distros (Bazzite, Silverblue)
+  that don't ship one. A *bottle* is the only thing Homebrew pours without a
+  compiler, so we repackage Proton's own Linux binary into an `x86_64_linux` bottle
+  (no modification — verified against Proton's SHA-512) and host it on this repo's
+  GitHub releases. Same pattern amdl/grove/pwtune use.
+- **Checksums:** Homebrew needs a **SHA-256** but Proton publishes **SHA-512** only,
+  so [`update.sh`](update.sh) fetches each binary once, **verifies Proton's SHA-512**
+  for integrity, and computes the SHA-256 the formula (and bottle) need.
 - A daily GitHub Action ([`.github/workflows/update.yml`](.github/workflows/update.yml))
-  runs `update.sh`; when Proton ships a new version it regenerates the formula and
-  pushes it to the tap. It's a no-op when nothing changed. GitHub disables a repo's
+  runs `update.sh`; when Proton ships a new version it releases the new bottle and
+  pushes the formula to the tap. No-op when nothing changed. GitHub disables a repo's
   cron after 60 days of inactivity, so the job also pushes a throwaway `keep-alive`
-  commit here only when this repo is ≥50 days idle — enough to keep the schedule
-  alive without daily noise.
+  commit only when this repo is ≥50 days idle — enough to keep the schedule alive
+  without daily noise.
 
 ## Setup (one time)
 
