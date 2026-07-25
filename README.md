@@ -19,6 +19,32 @@ The command is `proton-drive` (matching Proton's own docs); the *formula* is
 `proton-drive-cli` so it doesn't collide with the `proton-drive` cask (the macOS
 desktop app).
 
+## Headless / server (no keyring)
+
+Proton's CLI stores its login session in the OS keyring — Keychain on macOS,
+Secret Service/`libsecret` on Linux. A **headless server has no keyring**, so the
+default fails with `libsecret not available`. Point it at [`pass`](https://www.passwordstore.org/)
+instead (installed automatically as a Linux dependency):
+
+```sh
+gpg --quick-generate-key "proton-drive" default default never   # or reuse a key
+pass init "proton-drive"
+export PROTON_DRIVE_CREDENTIALS_STORE=pass    # put in the shell profile / systemd unit
+proton-drive auth login
+```
+
+Set `PROTON_DRIVE_CREDENTIALS_STORE` where per-host env belongs (the service's
+systemd `Environment=`, or your profile) — it's a per-machine choice, not baked
+into the package (macOS and desktop Linux keep the native keyring). **Sign-in is
+browser-based**, so authenticate once interactively — or log in on a desktop that
+shares the same `pass`/GPG key and sync `~/.password-store` to the server; then
+`pass` decrypts the session non-interactively for cron/backup jobs.
+
+> Proton's session handling doesn't yet have a first-class no-keyring/service-account
+> mode, so unattended server use still needs this one-time interactive login.
+> (`PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file` writes a *plaintext* session — Proton
+> marks it testing-only; avoid it.)
+
 ## How it works
 
 - **macOS (and non-x86_64 Linux) download straight from Proton** — the formula's

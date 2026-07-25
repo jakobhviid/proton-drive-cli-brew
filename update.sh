@@ -89,6 +89,11 @@ class ProtonDriveCli < Formula
   end
 
   on_linux do
+    # On a headless Linux server there's no Secret Service/libsecret keyring, so
+    # the session can be stored in \`pass\` instead (PROTON_DRIVE_CREDENTIALS_STORE
+    # — see caveats). Ship it so that path is one env var away, not another install.
+    depends_on "pass"
+
     on_arm do
       url "${URL[linux/arm64]}"
       sha256 "${SHA256[linux/arm64]}"
@@ -103,6 +108,21 @@ class ProtonDriveCli < Formula
   # work verbatim. The *formula* is proton-drive-cli to avoid the main app's name.
   def install
     bin.install "proton-drive"
+  end
+
+  def caveats
+    <<~EOS
+      proton-drive keeps its login session in your OS keyring — Keychain on macOS,
+      Secret Service/libsecret on Linux. A headless Linux server has no keyring, so
+      store the session in \`pass\` (installed as a dependency here) instead:
+
+        gpg --quick-generate-key "proton-drive" default default never
+        pass init "proton-drive"
+        export PROTON_DRIVE_CREDENTIALS_STORE=pass   # add to your profile / systemd unit
+
+      Sign-in is browser-based, so authenticate once interactively (or on a desktop
+      sharing the same pass/GPG key) — then unattended cron/backup runs work.
+    EOS
   end
 
   test do
