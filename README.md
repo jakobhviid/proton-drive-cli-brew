@@ -30,7 +30,10 @@ desktop app).
   computes the SHA-256 the formula needs.
 - A daily GitHub Action ([`.github/workflows/update.yml`](.github/workflows/update.yml))
   runs `update.sh`; when Proton ships a new version it regenerates the formula and
-  pushes it to the tap. It's a no-op when nothing changed.
+  pushes it to the tap. It's a no-op when nothing changed. GitHub disables a repo's
+  cron after 60 days of inactivity, so the job also pushes a throwaway `keep-alive`
+  commit here only when this repo is ≥50 days idle — enough to keep the schedule
+  alive without daily noise.
 
 ## Setup (one time)
 

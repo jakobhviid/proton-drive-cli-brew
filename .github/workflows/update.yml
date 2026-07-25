@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # to push the keep-alive commit back to this repo
 
 jobs:
   update:
@@ -45,3 +45,22 @@ jobs:
           git add Formula/proton-drive-cli.rb
           git commit -m "proton-drive-cli ${VERSION}" || { echo "no change — already at ${VERSION}"; exit 0; }
           git push
+
+      - name: Keep the schedule alive
+        # GitHub disables a repo's cron after 60 days with no activity. Proton
+        # releases (and thus tap pushes) are rare and land in the *tap*, not here,
+        # so this repo can go idle. Push a throwaway commit only when we're near
+        # the cutoff — ~one commit every ~50 days, not daily. A GITHUB_TOKEN push
+        # counts as activity but doesn't re-trigger the workflow (no loop).
+        run: |
+          last=$(git log -1 --format=%ct)
+          age=$(( ( $(date +%s) - last ) / 86400 ))
+          echo "this repo has been idle for ${age} day(s)"
+          if [ "$age" -ge 50 ]; then
+            date -u +"keep-alive %Y-%m-%dT%H:%M:%SZ (latest Proton Drive CLI: ${VERSION:-unknown})" > .keepalive
+            git config user.name "proton-drive-cli-bot"
+            git config user.email "proton-drive-cli-bot@users.noreply.github.com"
+            git add .keepalive
+            git commit -m "chore: keep-alive (avoid 60-day schedule auto-disable)"
+            git push
+          fi
