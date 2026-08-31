@@ -3,7 +3,7 @@
 class ProtonDriveCli < Formula
   desc "Access Proton Drive end-to-end encrypted cloud storage from the terminal"
   homepage "https://proton.me/drive"
-  version "0.6.0"
+  version "0.8.0"
   license "MIT"
 
   # Prebuilt x86_64 Linux bottle so `brew install` pours it with no C compiler
@@ -11,18 +11,18 @@ class ProtonDriveCli < Formula
   # macOS and other arches fall back to the direct-from-Proton url below; macOS
   # always has clang via the required Command Line Tools, so no bottle is needed.
   bottle do
-    root_url "https://github.com/jakobhviid/proton-drive-cli-brew/releases/download/v0.6.0"
-    sha256 cellar: :any_skip_relocation, x86_64_linux: "533468f681eeb2d865da6c562edc359e938c283d8f46897d17ed8c9aafc75ad8"
+    root_url "https://github.com/jakobhviid/proton-drive-cli-brew/releases/download/v0.8.0"
+    sha256 cellar: :any_skip_relocation, x86_64_linux: "a7cef02237918284d50c684b9e73b280e258cda68b8af3fce5d04dd1e34da87c"
   end
 
   on_macos do
     on_arm do
-      url "https://proton.me/download/drive/cli/0.6.0/darwin-arm64/proton-drive"
-      sha256 "606a9736bb1dbdf45b9ced5452c77f01ebf46e329d494668bfd82421cc53e0b0"
+      url "https://proton.me/download/drive/cli/0.8.0/darwin-arm64/proton-drive"
+      sha256 "dc8fc14de9ef07fcef28fe204051bb6729c49cf579170c8ce1ad669a26769711"
     end
     on_intel do
-      url "https://proton.me/download/drive/cli/0.6.0/darwin-x64/proton-drive"
-      sha256 "0f2a66f002bde69e2c3ceefc256304fe9d13d7c7cf18c96429fc9dc5a0a82c3b"
+      url "https://proton.me/download/drive/cli/0.8.0/darwin-x64/proton-drive"
+      sha256 "ba4c9d713755c4491282b418fc0115afc6aaeb01675bde19cc0a62c4833b6007"
     end
   end
 
@@ -33,12 +33,12 @@ class ProtonDriveCli < Formula
     depends_on "pass"
 
     on_arm do
-      url "https://proton.me/download/drive/cli/0.6.0/linux-arm64/proton-drive"
-      sha256 "5ab774a71fff67b591ef569ea19c20bcfc5bcab3a41976de2a2001825acfaf0d"
+      url "https://proton.me/download/drive/cli/0.8.0/linux-arm64/proton-drive"
+      sha256 "086bc4740a73cb8eb4900d51836bff0c332dda390b3f0780d9f805fd5c2a5fe3"
     end
     on_intel do
-      url "https://proton.me/download/drive/cli/0.6.0/linux-x64/proton-drive"
-      sha256 "0c268763bf9cf5e2d18f5cd05e79c63d2b26a996a670f5cddca1d9cfe0a02012"
+      url "https://proton.me/download/drive/cli/0.8.0/linux-x64/proton-drive"
+      sha256 "9443d771719c892790db17e6f02ecd99ad7c53593329f3a67c77677dce577735"
     end
   end
 

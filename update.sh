@@ -8,16 +8,28 @@
 # needs a SHA-256, so we download each binary, verify Proton's SHA-512, then
 # compute the SHA-256. The Linux binary is repackaged (no compile) into a bottle.
 #
+# Written for bash 3.2 (no associative arrays) so it runs on stock macOS as well
+# as in CI.
+#
 # Usage: ./update.sh [OUTPUT.rb]     (default: proton-drive-cli.rb)
 # Outputs the version on stdout; writes the bottle to $WORK (default ./build).
-# Requires: curl, jq, sha256sum, sha512sum, tar.
+# Requires: curl, jq, tar, and sha256sum/sha512sum (Linux) or shasum (macOS).
 set -euo pipefail
 
 MANIFEST="https://proton.me/download/drive/cli/version.json"
 OUT="${1:-proton-drive-cli.rb}"
 REPO="jakobhviid/proton-drive-cli-brew" # where the Linux bottle is released
 WORK="${WORK:-$(pwd)/build}"
-PLATFORMS=(macos/arm64 macos/x64 linux/arm64 linux/x64)
+
+# Linux CI has sha256sum/sha512sum, macOS has shasum. Support both so local
+# bumps work.
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256of() { sha256sum "$1" | cut -d' ' -f1; }
+  sha512of() { sha512sum "$1" | cut -d' ' -f1; }
+else
+  sha256of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+  sha512of() { shasum -a 512 "$1" | cut -d' ' -f1; }
+fi
 
 json="$(curl -fsSL "$MANIFEST")"
 rel="$(jq -c '[.Releases[] | select(.CategoryName=="Stable")][0]' <<<"$json")"
@@ -26,21 +38,40 @@ version="$(jq -r '.Version' <<<"$rel")"
 echo "Proton Drive CLI — stable $version" >&2
 
 # Download each binary, verify Proton's SHA-512, compute the SHA-256 Homebrew
-# needs. Keep the linux/x64 binary around to build the bottle.
-declare -A URL SHA256
-linux_x64_bin=""
-for plat in "${PLATFORMS[@]}"; do
-  url="$(jq -r --arg p "$plat" '.Files[] | select(.Platform==$p) | .Url' <<<"$rel")"
-  sha512="$(jq -r --arg p "$plat" '.Files[] | select(.Platform==$p) | .Sha512CheckSum' <<<"$rel")"
-  [ -n "$url" ] && [ "$url" != "null" ] || { echo "missing $plat in manifest" >&2; exit 1; }
-  tmp="$(mktemp)"
-  echo "  fetching $plat …" >&2
-  curl -fsSL "$url" -o "$tmp"
-  echo "${sha512}  ${tmp}" | sha512sum -c - >/dev/null
-  URL[$plat]="$url"
-  SHA256[$plat]="$(sha256sum "$tmp" | cut -d' ' -f1)"
-  if [ "$plat" = "linux/x64" ]; then linux_x64_bin="$tmp"; else rm -f "$tmp"; fi
-done
+# needs. Deterministic paths (rather than mktemp) so the bottle step can find
+# the linux/x64 binary without a global set from inside a subshell.
+DL="${WORK}/dl"
+mkdir -p "$DL"
+
+plat_url() { jq -r --arg p "$1" '.Files[] | select(.Platform==$p) | .Url' <<<"$rel"; }
+
+# $1=platform, $2=destination. Verifies Proton's SHA-512, echoes the SHA-256.
+fetch_verify() {
+  url="$(plat_url "$1")"
+  want512="$(jq -r --arg p "$1" '.Files[] | select(.Platform==$p) | .Sha512CheckSum' <<<"$rel")"
+  [ -n "$url" ] && [ "$url" != "null" ] || {
+    echo "missing $1 in manifest" >&2
+    exit 1
+  }
+  echo "  fetching $1 …" >&2
+  curl -fsSL "$url" -o "$2"
+  got512="$(sha512of "$2")"
+  [ "$got512" = "$want512" ] || {
+    echo "SHA-512 mismatch for $1: ${got512} != ${want512}" >&2
+    exit 1
+  }
+  sha256of "$2"
+}
+
+URL_MAC_ARM="$(plat_url macos/arm64)"
+SHA_MAC_ARM="$(fetch_verify macos/arm64 "${DL}/macos-arm64")"
+URL_MAC_X64="$(plat_url macos/x64)"
+SHA_MAC_X64="$(fetch_verify macos/x64 "${DL}/macos-x64")"
+URL_LNX_ARM="$(plat_url linux/arm64)"
+SHA_LNX_ARM="$(fetch_verify linux/arm64 "${DL}/linux-arm64")"
+URL_LNX_X64="$(plat_url linux/x64)"
+SHA_LNX_X64="$(fetch_verify linux/x64 "${DL}/linux-x64")"
+linux_x64_bin="${DL}/linux-x64"
 
 # Build the x86_64_linux bottle: a tar.gz of the keg layout Homebrew would install
 # (proton-drive-cli/<version>/bin/proton-drive). No compilation — just repackaging.
@@ -53,8 +84,8 @@ chmod +x "$keg/proton-drive"
 bottle="$WORK/proton-drive-cli-${version}.x86_64_linux.bottle.tar.gz"
 rm -f "$WORK"/*.bottle.tar.gz
 ( cd "$stage" && tar czf "$bottle" proton-drive-cli )
-rm -rf "$stage"
-BOTTLE_SHA256="$(sha256sum "$bottle" | cut -d' ' -f1)"
+rm -rf "$stage" "$DL"
+BOTTLE_SHA256="$(sha256of "$bottle")"
 echo "  built bottle $(basename "$bottle")" >&2
 
 root_url="https://github.com/${REPO}/releases/download/v${version}"
@@ -79,12 +110,12 @@ class ProtonDriveCli < Formula
 
   on_macos do
     on_arm do
-      url "${URL[macos/arm64]}"
-      sha256 "${SHA256[macos/arm64]}"
+      url "${URL_MAC_ARM}"
+      sha256 "${SHA_MAC_ARM}"
     end
     on_intel do
-      url "${URL[macos/x64]}"
-      sha256 "${SHA256[macos/x64]}"
+      url "${URL_MAC_X64}"
+      sha256 "${SHA_MAC_X64}"
     end
   end
 
@@ -95,12 +126,12 @@ class ProtonDriveCli < Formula
     depends_on "pass"
 
     on_arm do
-      url "${URL[linux/arm64]}"
-      sha256 "${SHA256[linux/arm64]}"
+      url "${URL_LNX_ARM}"
+      sha256 "${SHA_LNX_ARM}"
     end
     on_intel do
-      url "${URL[linux/x64]}"
-      sha256 "${SHA256[linux/x64]}"
+      url "${URL_LNX_X64}"
+      sha256 "${SHA_LNX_X64}"
     end
   end
 
