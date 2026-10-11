@@ -54,7 +54,10 @@ jobs:
           git config user.email "proton-drive-cli-bot@users.noreply.github.com"
           git add Formula/proton-drive-cli.rb
           git commit -m "proton-drive-cli ${VERSION}"
-          git push
+          # To a candidate branch, not main: the tap's gate installs and tests the
+          # formula on every platform it claims and lands it only if it passes,
+          # opening an issue there if not. Force: the branch holds one candidate.
+          git push --force origin "HEAD:refs/heads/auto/formula-proton-drive-cli"
 
       - name: Keep the schedule alive
         # GitHub disables a repo's cron after 60 days with no activity. Proton

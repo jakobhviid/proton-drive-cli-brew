@@ -99,6 +99,17 @@ class ProtonDriveCli < Formula
   version "${version}"
   license "MIT"
 
+  # Proton publishes no tags these URLs could be checked against, so point
+  # livecheck at the manifest this formula is generated from. Without it the
+  # tap's daily freshness check cannot tell whether this formula has fallen
+  # behind Proton.
+  livecheck do
+    url "${MANIFEST}"
+    strategy :json do |json|
+      json["Releases"]&.select { |r| r["CategoryName"] == "Stable" }&.map { |r| r["Version"] }
+    end
+  end
+
   # Prebuilt x86_64 Linux bottle so \`brew install\` pours it with no C compiler
   # (Homebrew-on-Linux otherwise requires one — a problem on atomic distros).
   # macOS and other arches fall back to the direct-from-Proton url below; macOS
