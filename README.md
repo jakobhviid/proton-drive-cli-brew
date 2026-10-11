@@ -62,7 +62,9 @@ shares the same `pass`/GPG key and sync `~/.password-store` to the server; then
   for integrity, and computes the SHA-256 the formula (and bottle) need.
 - A daily GitHub Action ([`.github/workflows/update.yml`](.github/workflows/update.yml))
   runs `update.sh`; when Proton ships a new version it releases the new bottle and
-  pushes the formula to the tap. No-op when nothing changed. GitHub disables a repo's
+  pushes the formula to the tap's `auto/formula-proton-drive-cli` branch, where
+  the tap's gate installs and tests it and lands it on `main` only if it passes
+  (opening an issue there if not). No-op when nothing changed. GitHub disables a repo's
   cron after 60 days of inactivity, so the job also pushes a throwaway `keep-alive`
   commit only when this repo is ≥50 days idle — enough to keep the schedule alive
   without daily noise.
