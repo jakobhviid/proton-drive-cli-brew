@@ -1,5 +1,12 @@
 # proton-drive-cli-brew
 
+> ### ⚠️ Archived — moved into the tap
+> The `proton-drive-cli` formula is now bumped daily inside
+> [jakobhviid/homebrew-tap](https://github.com/jakobhviid/homebrew-tap) by
+> `scripts/bump-formula.py`, with its Linux bottles in that repo's releases.
+> Nothing changes for users: `brew install jakobhviid/tap/proton-drive-cli` as before.
+> This repo is kept only so bottles of older versions stay downloadable.
+
 Homebrew packaging for **[Proton Drive CLI](https://proton.me/blog/proton-drive-cli)**
 — Proton's end-to-end encrypted cloud storage, from the terminal — for **macOS and
 Linux** (arm64 + x86_64).
